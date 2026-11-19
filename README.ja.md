@@ -8,6 +8,8 @@
 
 このリポジトリは、QSA・マルチモーダル入力・MTP・稼働中のprefixキャッシュ再利用に対応したQwen3.8-27B向けの専用llama.cpp推論エンジンです。[GGUFモデルシリーズ](https://huggingface.co/higa2515/Qwen3.8-27B-QSA-GGUF)には、Q8_0とUnsloth UD-Q4_K_M・UD-Q5_K_M・UD-Q6_Kがあります。アーキテクチャの参照元は[*On the Design of Qwen3.8-Next Architecture: Evaluation, Efficiency, and Training Stability*](https://arxiv.org/abs/2608.30320)です。
 
+> **Indexer v2（2026-11-20）。** Hugging FaceのGGUF 4つは、v2のQSA indexerに差し替えました。変わったのはFP32 indexerの80 tensorだけです。tensorの名前・形・型とほかの全byteはv1と同じなので、エンジンのコードと収録済みruntimeは変えていません。128kの構造化recall試験240問（thinking off）で、v2は215問正解しました（v1は169、dense attentionは227）。詳しくは[長文脈のrecall](#長文脈のrecallindexer-v1とv2)を参照してください。v1のファイルは、`hf download`に`--revision v1`を付けると取得できます。学習と評価の記録は[qsa-indexer-forge](https://github.com/kuraneko1/qsa-indexer-forge/blob/main/docs/research-v2.md)にあります。
+
 ## モデルバリアント
 
 | バリアント | 出典とサイズ |
@@ -17,7 +19,7 @@
 | `Qwen3.8-27B-QSA-Unsloth-UD-Q5_K_M.gguf` | Unsloth UD混合精度レシピ、19.98 GB |
 | `Qwen3.8-27B-QSA-Unsloth-UD-Q6_K.gguf` | Unsloth UD混合精度レシピ、22.19 GB |
 
-Unsloth版は[unsloth/Qwen3.8-27B-GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/tree/4ca720788d1e01f1bff70c033e0d0028fd02e502)の866個のtensorを、MTPの15個も含めてbyte単位で維持しています。同じ80個のFP32 QSA indexer tensorを追加しており、再学習や再量子化はしていません。UDは混合精度レシピであり、全tensorが一律のbit数ではありません。
+Unsloth版は[unsloth/Qwen3.8-27B-GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/tree/4ca720788d1e01f1bff70c033e0d0028fd02e502)の866個のtensorを、MTPの15個も含めてbyte単位で維持しています。同じ80個のFP32 QSA indexer tensorを追加しており、再学習や再量子化はしていません。UDは混合精度レシピであり、全tensorが一律のbit数ではありません。2026-11-20から、4つともv2のindexerです。GGUFのメタデータの名前は変えていないので、版はGGUF repoの`SHA256SUMS`のSHA256で見分けてください。
 
 ## QSAの概要
 
@@ -71,7 +73,23 @@ bash qsa27b/launch-captured-runtime.sh
 
 ## 実測結果
 
-### 限定的な品質確認
+### 長文脈のrecall（indexer v1とv2）
+
+PG-19のvalidation・testの本（約127k token）に植えた構造化recallの240問（8種類 x 10深さ x 3）での正解数です。この問題はv2の学習にも設定の決定にも使っていません。
+
+| Indexer | thinking off | thinking low |
+| --- | ---: | ---: |
+| v1 | 169/240 | 185/240 |
+| **v2** | **215/240** | **218/240** |
+| Dense attention（上限の目安） | 227/240 | 232/240 |
+
+対応のあるexact McNemar検定で、v2はv1より有意に良く（off：55対9問、p = 3.5e-9。low：39対6、p = 5.4e-7）、dense attentionはまだv2より有意に良い結果でした（off：19対7、p = 0.029。low：20対6、p = 0.009）。thinking offでは、似た記録の取り違えが26件から9件（denseは5件）、記録の組の誤りが25件から9件（denseは2件）に減りました。
+
+条件：indexerのtensorだけを差し替えた`Qwen3.8-27B-QSA-Q8_0.gguf`、A100 80GB 1枚、context 262,144、FP16 KV、MTP draft 2、K=2,048、greedy、出力の上限65,536 token。thinking lowはchat templateの`reasoning_effort: "low"`です。この測定には[pentaCoxian/Qwen-QSA-llama.cppの`70b4e14`](https://github.com/pentaCoxian/Qwen-QSA-llama.cpp/tree/70b4e14a830a4ec78d1ac97087cd9fac02429d37)をsm_80でビルドして使いました。このリポジトリとllama.cppのbase（`6209237`）は同じですが、コードが15ファイル違うため、このリポジトリのビルドでの測定ではありません。v2のファイルを、このリポジトリの収録済みsm70 runtimeで動かした確認はまだありません。各条件は1回ずつの測定です。同じ重みでも再実行で240問中約6問の正誤が入れ替わり、GPUの種類でも結果が変わります。
+
+v2でまだ測っていないもの：Q4 / Q5 / Q6の課題の成績、ほかの文脈長、一般の文章のPPL、画像・動画（v2はテキストだけで学習）。以下の結果はv1のindexerで測ったものです。
+
+### 限定的な品質確認（v1 indexer）
 
 BF16研究参照版で元のdense経路と比較した結果です。Q8_0 nativeの品質結果ではありません。
 
@@ -82,7 +100,7 @@ BF16研究参照版で元のdense経路と比較した結果です。Q8_0 native
 
 DocVQAの結果は標準の自由回答DocVQAによる評価ではありません。これらの小規模な確認から、一般的な性能維持率や広範な品質同等性を示すことはできません。nativeのマルチモーダル確認は64kまでの限定的なprobeにとどまります。
 
-### Unsloth Q4 / Q5 / Q6のテキスト確認
+### Unsloth Q4 / Q5 / Q6のテキスト確認（v1 indexer）
 
 6つの固定windowで、最大65,024入力トークン、FP16 KV、MTP無効のteacher-forced評価を行いました。PPL差は各量子化モデル内のdenseに対するQSAの相対差です。
 
@@ -94,9 +112,9 @@ DocVQAの結果は標準の自由回答DocVQAによる評価ではありませ�
 
 captureは注意質量の捕捉率で、タスクの正答率ではありません。oracleは同じ予算でその質量を最大化した値です。このテキスト評価から、一般的な品質同等性、自由生成の品質、BF16との比較は示せません。[評価の全データ](https://huggingface.co/higa2515/Qwen3.8-27B-QSA-GGUF/tree/main/unsloth-qsa)も公開しています。
 
-### Q8_0の速度比較
+### Q8_0の速度比較（v1 indexer）
 
-次の結果はQ8_0だけに適用され、Unsloth版の結果ではありません。両方の経路で同じQ8_0 GGUF、FP16 KV、MTP draft2、エンジン、sm70の32GB GPU 2台を使用しました。Denseは`LLAMA_QSA_DENSE=1`で元の16個の全注意層を通常attentionに戻した対照です。48個のGated DeltaNet層は両方で保持しています。
+次の結果はQ8_0だけに適用され、Unsloth版の結果ではありません。v2で変わったのはindexerの重みだけで、tensorの形・K・注意の計算量は同じなので、速度は測り直していません。両方の経路で同じQ8_0 GGUF、FP16 KV、MTP draft2、エンジン、sm70の32GB GPU 2台を使用しました。Denseは`LLAMA_QSA_DENSE=1`で元の16個の全注意層を通常attentionに戻した対照です。48個のGated DeltaNet層は両方で保持しています。
 
 | 入力トークン | QSA cold prefill | Dense cold prefill | QSA decode | Dense decode |
 | ---: | ---: | ---: | ---: | ---: |
@@ -111,7 +129,7 @@ QSAの0以外の深度は以前の同条件runの測定値を使い、QSAとDens
 
 ## ContributorsとCredits
 
-- [kuraneko1](https://github.com/kuraneko1): QSA 27B統合、マルチモーダルruntime、リリース工程。
+- [kuraneko1](https://github.com/kuraneko1): QSA 27B統合、マルチモーダルruntime、リリース工程、v2 indexerの学習。
 - [pentaCoxian](https://github.com/pentaCoxian): V100向けllama.cpp基盤とruntime最適化。
 - [Warabii1248](https://github.com/Warabii1248): 基盤エンジンに取り込まれたV100 patch群。
 - [ggml-org contributors](https://github.com/ggml-org/llama.cpp): 上流のllama.cpp。

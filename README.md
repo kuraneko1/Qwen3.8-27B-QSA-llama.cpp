@@ -8,6 +8,8 @@
 
 This repository is the custom llama.cpp inference engine for Qwen3.8-27B with QSA, multimodal input, MTP, and live prefix-cache reuse. The [GGUF model series](https://huggingface.co/higa2515/Qwen3.8-27B-QSA-GGUF) includes Q8_0 and Unsloth UD-Q4_K_M, UD-Q5_K_M, and UD-Q6_K variants. The architecture reference is [*On the Design of Qwen3.8-Next Architecture: Evaluation, Efficiency, and Training Stability*](https://arxiv.org/abs/2608.30320).
 
+> **Indexer v2 (2026-11-20).** The four GGUF files on Hugging Face now carry the v2 QSA indexer. Only the 80 FP32 indexer tensors changed. Tensor names, shapes, types, and all other bytes are the same as v1, so the engine code and the captured runtime archive were not changed. On a 240-question structured-recall test at 128k context, v2 answered 215 correctly with thinking off, against 169 for v1 and 227 for dense attention (see [Long-context recall](#long-context-recall-indexer-v1-vs-v2)). To download the v1 files, add `--revision v1` to `hf download`. The training and evaluation record is in [qsa-indexer-forge](https://github.com/kuraneko1/qsa-indexer-forge/blob/main/docs/research-v2.md).
+
 ## Model variants
 
 | Variant | Source and size |
@@ -17,7 +19,7 @@ This repository is the custom llama.cpp inference engine for Qwen3.8-27B with QS
 | `Qwen3.8-27B-QSA-Unsloth-UD-Q5_K_M.gguf` | Unsloth UD mixed-precision recipe, 19.98 GB |
 | `Qwen3.8-27B-QSA-Unsloth-UD-Q6_K.gguf` | Unsloth UD mixed-precision recipe, 22.19 GB |
 
-The Unsloth variants copy all 866 original tensors, including 15 MTP tensors, from [unsloth/Qwen3.8-27B-GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/tree/4ca720788d1e01f1bff70c033e0d0028fd02e502) byte-for-byte. The same 80 FP32 QSA indexer tensors were added without retraining or requantization. UD is a mixed-precision recipe, not a uniform bit depth for every tensor.
+The Unsloth variants copy all 866 original tensors, including 15 MTP tensors, from [unsloth/Qwen3.8-27B-GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/tree/4ca720788d1e01f1bff70c033e0d0028fd02e502) byte-for-byte. The same 80 FP32 QSA indexer tensors were added without retraining or requantization. UD is a mixed-precision recipe, not a uniform bit depth for every tensor. Since 2026-11-20, all four variants carry the v2 indexer; identify the version by the SHA256 in the GGUF repository's `SHA256SUMS`, because the GGUF metadata names were not changed.
 
 ## QSA in brief
 
@@ -71,7 +73,23 @@ bash qsa27b/launch-captured-runtime.sh
 
 ## Measured results
 
-### Limited quality checks
+### Long-context recall: indexer v1 vs v2
+
+Correct answers on a held-out set of 240 structured-recall questions (8 question types x 10 depths x 3) planted in about 127k tokens of PG-19 validation and test books. The set was not used to train or tune v2.
+
+| Indexer | Thinking off | Thinking low |
+| --- | ---: | ---: |
+| v1 | 169/240 | 185/240 |
+| **v2** | **215/240** | **218/240** |
+| Dense attention (upper reference) | 227/240 | 232/240 |
+
+In paired exact McNemar tests, v2 beat v1 (thinking off: 55 vs 9 questions, p = 3.5e-9; thinking low: 39 vs 6, p = 5.4e-7), and dense attention remained better than v2 (off: 19 vs 7, p = 0.029; low: 20 vs 6, p = 0.009). With thinking off, look-alike-record errors fell from 26 to 9 (dense: 5), and wrong-record-set errors from 25 to 9 (dense: 2).
+
+Setup: `Qwen3.8-27B-QSA-Q8_0.gguf` with only the indexer tensors replaced, one A100 80GB, context 262,144, FP16 KV, MTP draft 2, K=2,048, greedy decoding, maximum output 65,536 tokens. Thinking low uses the chat template's `reasoning_effort: "low"`. These runs used [pentaCoxian/Qwen-QSA-llama.cpp at `70b4e14`](https://github.com/pentaCoxian/Qwen-QSA-llama.cpp/tree/70b4e14a830a4ec78d1ac97087cd9fac02429d37), built for sm_80. It has the same llama.cpp base (`6209237`) as this repository but differs in 15 code files, so these results are not a measurement of this repository's build. The v2 files have not yet been run with this repository's captured sm70 runtime. Each configuration was run once; about 6 of 240 answers changed between repeated runs, and results also shifted between GPU types.
+
+Not yet measured for v2: Q4/Q5/Q6 task accuracy, other context lengths, general-text perplexity, and images or video (v2 was trained on text only). The results below were measured with the v1 indexer.
+
+### Limited quality checks (v1 indexer)
 
 These are BF16 research-reference comparisons against the original dense path, not Q8_0 native quality results.
 
@@ -82,7 +100,7 @@ These are BF16 research-reference comparisons against the original dense path, n
 
 The DocVQA probe is not standard open-ended DocVQA scoring. These small checks do not establish a general performance-retention percentage or broad quality equivalence. Native multimodal probes are limited to checks through 64k.
 
-### Unsloth Q4/Q5/Q6 text checks
+### Unsloth Q4/Q5/Q6 text checks (v1 indexer)
 
 A teacher-forced evaluation used six fixed windows, up to 65,024 input tokens, FP16 KV, and MTP disabled. PPL differences are QSA relative to dense within each quantized model.
 
@@ -94,9 +112,9 @@ A teacher-forced evaluation used six fixed windows, up to 65,024 input tokens, F
 
 Capture measures attention mass, not task accuracy. The oracle maximizes that mass under the same budget. These text-only checks do not establish general quality equivalence, free-generation quality, or a comparison with BF16. See [the complete evaluation](https://huggingface.co/higa2515/Qwen3.8-27B-QSA-GGUF/tree/main/unsloth-qsa).
 
-### Q8_0 throughput: QSA vs dense
+### Q8_0 throughput: QSA vs dense (v1 indexer)
 
-The following results apply only to Q8_0, not to the Unsloth variants. The same Q8_0 GGUF, FP16 KV, MTP draft2, engine, and two sm70 32GB GPUs were used for both paths. Dense restores the 16 original full-attention layers with `LLAMA_QSA_DENSE=1`; the 48 Gated DeltaNet layers stay unchanged.
+The following results apply only to Q8_0, not to the Unsloth variants. v2 changes only indexer weights, so tensor shapes, K, and the amount of attention work are unchanged; throughput was not re-measured. The same Q8_0 GGUF, FP16 KV, MTP draft2, engine, and two sm70 32GB GPUs were used for both paths. Dense restores the 16 original full-attention layers with `LLAMA_QSA_DENSE=1`; the 48 Gated DeltaNet layers stay unchanged.
 
 | Input tokens | QSA cold prefill | Dense cold prefill | QSA decode | Dense decode |
 | ---: | ---: | ---: | ---: | ---: |
@@ -111,7 +129,7 @@ QSA's nonzero-depth samples were retained from the earlier matched run; QSA and 
 
 ## Contributors and credits
 
-- [kuraneko1](https://github.com/kuraneko1): QSA 27B integration, multimodal runtime, and release engineering.
+- [kuraneko1](https://github.com/kuraneko1): QSA 27B integration, multimodal runtime, release engineering, and the v2 indexer training.
 - [pentaCoxian](https://github.com/pentaCoxian): V100-oriented llama.cpp base and runtime optimizations.
 - [Warabii1248](https://github.com/Warabii1248): V100 patch series included in the base engine.
 - [ggml-org contributors](https://github.com/ggml-org/llama.cpp): upstream llama.cpp.
