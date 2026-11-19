@@ -14,7 +14,7 @@ The following single-GPU configurations loaded and generated short text. VRAM fi
 | Tesla V100 32 GB | UD-Q6_K | 65,536 | Q8_0 | 25,944 / 32,768 MiB |
 | Tesla V100 32 GB | UD-Q4_K_M | 262,144 | Q8_0 | about 28,102 / 32,768 MiB |
 
-The Q5 and Q6 configurations placed all model tensors, including input embeddings, on the GPU. The Q4 configuration left the input embedding on the CPU. Context capacity is not the length of the input used in the startup check: Q5/Q6 generated short responses, while the Q4 trial used up to 16,064 input tokens. These are not broad quality or throughput benchmarks. Image/video support was loaded; the Q5/Q6 startup checks did not assess image/video answers.
+The Q5 and Q6 configurations placed all model tensors, including input embeddings, on the GPU. The Q4 configuration left the input embedding on the CPU. Context capacity is not the length of the input used in the startup check: Q5/Q6 generated short responses, while the Q4 trial used up to 16,064 input tokens. These are not broad quality or throughput benchmarks. These checks used the v1 indexer; the v2 files have the same tensor shapes and sizes. Image/video support was loaded; the Q5/Q6 startup checks did not assess image/video answers.
 
 ## Build for your GPU
 

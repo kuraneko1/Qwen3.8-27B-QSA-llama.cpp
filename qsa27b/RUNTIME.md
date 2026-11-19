@@ -70,5 +70,15 @@ and must be pointed at your copied assets before use. No new 27B quality run was
 performed during publication. Captured validation summaries and the measured
 text-throughput result are included separately from the source fixtures.
 
+## Indexer versions
+
+Since 2026-11-20 the GGUF repository's model files carry indexer v2. Only the 80 FP32
+indexer tensors changed; tensor names, shapes, types and all other bytes match v1, so
+this runtime and source were not changed. The v1 files remain at the Hugging Face tag `v1`.
+qsa27b/validation/validate-mm2-artifacts.py checks the v1 (MM2) Q8_0 file and its fixed
+SHA256; it does not apply to v2 files. The v2 release checks are recorded in the GGUF
+repository's validation/artifacts.json. The v2 files have not yet been run with this
+captured sm70 runtime.
+
 Source is MIT, with upstream third-party notices preserved. GGUF model weights
 are Apache-2.0. Host CUDA SDK and NVIDIA driver binaries are not bundled.
