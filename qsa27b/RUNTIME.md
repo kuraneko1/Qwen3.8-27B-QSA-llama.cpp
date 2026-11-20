@@ -77,8 +77,10 @@ indexer tensors changed; tensor names, shapes, types and all other bytes match v
 this runtime and source were not changed. The v1 files remain at the Hugging Face tag `v1`.
 qsa27b/validation/validate-mm2-artifacts.py checks the v1 (MM2) Q8_0 file and its fixed
 SHA256; it does not apply to v2 files. The v2 release checks are recorded in the GGUF
-repository's validation/artifacts.json. The v2 files have not yet been run with this
-captured sm70 runtime.
+repository's validation/artifacts.json. On 2026-11-20 the v2 UD-Q4_K_M file was started
+with this captured sm70 runtime on two V100 32GB GPUs (launch.sh) and on one V100: text and
+image prompts used the sparse route, and two 128k recall questions were answered correctly
+on the two-GPU setup. This was a startup and response check, not a quality run.
 
 Source is MIT, with upstream third-party notices preserved. GGUF model weights
 are Apache-2.0. Host CUDA SDK and NVIDIA driver binaries are not bundled.

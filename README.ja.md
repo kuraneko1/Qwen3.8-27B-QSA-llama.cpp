@@ -94,9 +94,9 @@ v1からの改善：
 
 対応のあるexact McNemar検定で、v2はv1より有意に良く（off：55対9問、p = 3.5e-9。low：39対6、p = 5.4e-7）、dense attentionはまだv2より有意に良い結果でした（off：19対7、p = 0.029。low：20対6、p = 0.009）。thinking offでは、似た記録の取り違えが26件から9件（denseは5件）、記録の組の誤りが25件から9件（denseは2件）に減りました。
 
-条件：indexerのtensorだけを差し替えた`Qwen3.8-27B-QSA-Q8_0.gguf`、A100 80GB 1枚、context 262,144、FP16 KV、MTP draft 2、K=2,048、greedy、出力の上限65,536 token。thinking lowはchat templateの`reasoning_effort: "low"`です。この測定には[pentaCoxian/Qwen-QSA-llama.cppの`70b4e14`](https://github.com/pentaCoxian/Qwen-QSA-llama.cpp/tree/70b4e14a830a4ec78d1ac97087cd9fac02429d37)をsm_80でビルドして使いました。このリポジトリとllama.cppのbase（`6209237`）は同じですが、コードが15ファイル違うため、このリポジトリのビルドでの測定ではありません。v2のファイルを、このリポジトリの収録済みsm70 runtimeで動かした確認はまだありません。各条件は1回ずつの測定です。同じ重みでも再実行で240問中約6問の正誤が入れ替わり、GPUの種類でも結果が変わります。
+条件：indexerのtensorだけを差し替えた`Qwen3.8-27B-QSA-Q8_0.gguf`、A100 80GB 1枚、context 262,144、FP16 KV、MTP draft 2、K=2,048、greedy、出力の上限65,536 token。thinking lowはchat templateの`reasoning_effort: "low"`です。この測定には[pentaCoxian/Qwen-QSA-llama.cppの`70b4e14`](https://github.com/pentaCoxian/Qwen-QSA-llama.cpp/tree/70b4e14a830a4ec78d1ac97087cd9fac02429d37)をsm_80でビルドして使いました。このリポジトリとllama.cppのbase（`6209237`）は同じですが、コードが15ファイル違うため、このリポジトリのビルドでの測定ではありません。2026-11-20に、v2のUD-Q4_K_Mを、このリポジトリの収録済みsm70 runtime（V100 32GB 2枚で`launch.sh`、V100 1枚で[GPUガイド](qsa27b/GPU-GUIDE.ja.md)の例）と、A100向け（sm_80）のソースビルドでも起動しました。3つとも文字と画像でsparseの経路を使い、日本語・英語・コード・画像の短い質問に同じ趣旨の答えを返しました。V100 2枚とA100では、128kのrecallの2問にも正解しました。これは起動と応答の確認で、成績の測定ではありません。各条件は1回ずつの測定です。同じ重みでも再実行で240問中約6問の正誤が入れ替わり、GPUの種類でも結果が変わります。
 
-v2でまだ測っていないもの：Q4 / Q5 / Q6の課題の成績、ほかの文脈長、一般の文章のPPL、画像・動画（v2はテキストだけで学習）。以下の結果はv1のindexerで測ったものです。
+v2でまだ測っていないもの：このリポジトリのエンジンでの240問の成績、Q4 / Q5 / Q6の課題の成績、ほかの文脈長、一般の文章のPPL、画像・動画（v2はテキストだけで学習）。以下の結果はv1のindexerで測ったものです。
 
 ### 限定的な品質確認（v1 indexer）
 
