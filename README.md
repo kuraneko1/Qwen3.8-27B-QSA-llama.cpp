@@ -8,7 +8,7 @@
 
 This repository is the custom llama.cpp inference engine for Qwen3.8-27B with QSA, multimodal input, MTP, and live prefix-cache reuse. The [GGUF model series](https://huggingface.co/higa2515/Qwen3.8-27B-QSA-GGUF) includes Q8_0 and Unsloth UD-Q4_K_M, UD-Q5_K_M, and UD-Q6_K variants. The architecture reference is [*On the Design of Qwen3.8-Next Architecture: Evaluation, Efficiency, and Training Stability*](https://arxiv.org/abs/2608.30320).
 
-> **Indexer v2 (2026-11-20).** The four GGUF files on Hugging Face now carry the v2 QSA indexer. Only the 80 FP32 indexer tensors changed. Tensor names, shapes, types, and all other bytes are the same as v1, so the engine code and the captured runtime archive were not changed. On a 240-question structured-recall test at 128k context, v2 answered 215 correctly with thinking off, against 169 for v1 and 227 for dense attention (see [Long-context recall](#long-context-recall-indexer-v1-vs-v2)). To download the v1 files, add `--revision v1` to `hf download`. The training and evaluation record is in [qsa-indexer-forge](https://github.com/kuraneko1/qsa-indexer-forge/blob/main/docs/research-v2.md).
+> **Indexer v2 (2026-11-20).** The four GGUF files on Hugging Face now carry the v2 QSA indexer. Only the 80 FP32 indexer tensors changed. Tensor names, shapes, types, and all other bytes are the same as v1, so the engine code and the captured runtime archive were not changed. On a 240-question structured-recall test at 128k context, v2 answered 215 correctly with thinking off, 27.2% more than v1 (169); dense attention answered 227 (see [Long-context recall](#long-context-recall-indexer-v1-vs-v2)). To download the v1 files, add `--revision v1` to `hf download`. The training and evaluation record is in [qsa-indexer-forge](https://github.com/kuraneko1/qsa-indexer-forge/blob/main/docs/research-v2.md).
 
 ## Model variants
 
@@ -79,9 +79,18 @@ Correct answers on a held-out set of 240 structured-recall questions (8 question
 
 | Indexer | Thinking off | Thinking low |
 | --- | ---: | ---: |
-| v1 | 169/240 | 185/240 |
-| **v2** | **215/240** | **218/240** |
-| Dense attention (upper reference) | 227/240 | 232/240 |
+| v1 | 169/240 (70.4%) | 185/240 (77.1%) |
+| **v2** | **215/240 (89.6%)** | **218/240 (90.8%)** |
+| Dense attention (upper reference) | 227/240 (94.6%) | 232/240 (96.7%) |
+
+Improvement of v2 over v1:
+
+| Measure | Thinking off | Thinking low |
+| --- | ---: | ---: |
+| Correct answers | +46 (+27.2%) | +33 (+17.8%) |
+| Accuracy | +19.2 points | +13.8 points |
+| Wrong answers | 71 to 25 (64.8% fewer) | 55 to 22 (60.0% fewer) |
+| Share of the v1-to-dense gap closed | 79.3% | 70.2% |
 
 In paired exact McNemar tests, v2 beat v1 (thinking off: 55 vs 9 questions, p = 3.5e-9; thinking low: 39 vs 6, p = 5.4e-7), and dense attention remained better than v2 (off: 19 vs 7, p = 0.029; low: 20 vs 6, p = 0.009). With thinking off, look-alike-record errors fell from 26 to 9 (dense: 5), and wrong-record-set errors from 25 to 9 (dense: 2).
 

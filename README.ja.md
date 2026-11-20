@@ -8,7 +8,7 @@
 
 このリポジトリは、QSA・マルチモーダル入力・MTP・稼働中のprefixキャッシュ再利用に対応したQwen3.8-27B向けの専用llama.cpp推論エンジンです。[GGUFモデルシリーズ](https://huggingface.co/higa2515/Qwen3.8-27B-QSA-GGUF)には、Q8_0とUnsloth UD-Q4_K_M・UD-Q5_K_M・UD-Q6_Kがあります。アーキテクチャの参照元は[*On the Design of Qwen3.8-Next Architecture: Evaluation, Efficiency, and Training Stability*](https://arxiv.org/abs/2608.30320)です。
 
-> **Indexer v2（2026-11-20）。** Hugging FaceのGGUF 4つは、v2のQSA indexerに差し替えました。変わったのはFP32 indexerの80 tensorだけです。tensorの名前・形・型とほかの全byteはv1と同じなので、エンジンのコードと収録済みruntimeは変えていません。128kの構造化recall試験240問（thinking off）で、v2は215問正解しました（v1は169、dense attentionは227）。詳しくは[長文脈のrecall](#長文脈のrecallindexer-v1とv2)を参照してください。v1のファイルは、`hf download`に`--revision v1`を付けると取得できます。学習と評価の記録は[qsa-indexer-forge](https://github.com/kuraneko1/qsa-indexer-forge/blob/main/docs/research-v2.md)にあります。
+> **Indexer v2（2026-11-20）。** Hugging FaceのGGUF 4つは、v2のQSA indexerに差し替えました。変わったのはFP32 indexerの80 tensorだけです。tensorの名前・形・型とほかの全byteはv1と同じなので、エンジンのコードと収録済みruntimeは変えていません。128kの構造化recall試験240問（thinking off）で、v2は215問正解しました（v1の169問より27.2%多い。dense attentionは227問）。詳しくは[長文脈のrecall](#長文脈のrecallindexer-v1とv2)を参照してください。v1のファイルは、`hf download`に`--revision v1`を付けると取得できます。学習と評価の記録は[qsa-indexer-forge](https://github.com/kuraneko1/qsa-indexer-forge/blob/main/docs/research-v2.md)にあります。
 
 ## モデルバリアント
 
@@ -79,9 +79,18 @@ PG-19のvalidation・testの本（約127k token）に植えた構造化recallの
 
 | Indexer | thinking off | thinking low |
 | --- | ---: | ---: |
-| v1 | 169/240 | 185/240 |
-| **v2** | **215/240** | **218/240** |
-| Dense attention（上限の目安） | 227/240 | 232/240 |
+| v1 | 169/240（70.4%） | 185/240（77.1%） |
+| **v2** | **215/240（89.6%）** | **218/240（90.8%）** |
+| Dense attention（上限の目安） | 227/240（94.6%） | 232/240（96.7%） |
+
+v1からの改善：
+
+| 指標 | thinking off | thinking low |
+| --- | ---: | ---: |
+| 正解数 | +46問（+27.2%） | +33問（+17.8%） |
+| 正答率 | +19.2ポイント | +13.8ポイント |
+| 誤答数 | 71から25（64.8%減） | 55から22（60.0%減） |
+| v1とdenseの差のうち埋めた割合 | 79.3% | 70.2% |
 
 対応のあるexact McNemar検定で、v2はv1より有意に良く（off：55対9問、p = 3.5e-9。low：39対6、p = 5.4e-7）、dense attentionはまだv2より有意に良い結果でした（off：19対7、p = 0.029。low：20対6、p = 0.009）。thinking offでは、似た記録の取り違えが26件から9件（denseは5件）、記録の組の誤りが25件から9件（denseは2件）に減りました。
 
